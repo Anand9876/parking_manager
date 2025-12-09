@@ -5,7 +5,7 @@ import Customerdetails from './components/customerdetails';
 import VehicleDetails from './components/vehicledetails';
 import ParkingSlots from './components/parking_slots';
 import CustomerList from './components/customerList';
-import Payment from './components/parking_record';
+import Payment from './components/payment';
 function App() {
 return(
   <Router>
