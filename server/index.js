@@ -108,56 +108,6 @@ app.post('/vehicle',async(req,res)=>{
 console.error(err.message);
     }
 })
-/*app.post('/vehicle', async (req, res) => {
-  const { license_plate, type, customer_id, slot_id } = req.body;
-
-  try {
-    
-      custId = parseInt(customer_id);
-    
-
-    let vehicleRes = await connection.query(
-      "SELECT vehicle_id FROM vehicle WHERE plate_number = $1", 
-      [license_plate]
-    );
-    
-      vehicle_id = vehicleRes.rows[0].vehicle_id;
-
-      const newVehicle = await connection.query(
-        "INSERT INTO vehicle (plate_number, vehicle_type, customer_id) VALUES ($1, $2, $3) RETURNING vehicle_id",
-        [plate, type, custId]
-      );
-      vehicle_id = newVehicle.rows[0].vehicle_id;
-
-    const recordRes = await connection.query(
-      `INSERT INTO parking_record (vehicle_id, slot_id, entry_time) 
-       VALUES ($1, $2, NOW()) 
-       RETURNING record_id`,
-      [vehicle_id, slot_id]
-    );
-
-    await connection.query(
-      "UPDATE parking_slot SET status = 'occupied' WHERE slot_id = $1", 
-      [slot_id]
-    );
-
-    res.json({ 
-      success: true, 
-      message: "Check-in Complete",
-      record_id: recordRes.rows[0].record_id,
-      vehicle_id: vehicle_id
-    });
-
-  } catch (err) {
-    console.error(err.message);
-    
-    if (err.code === '23503') {
-      res.status(400).json("Error: Invalid Slot ID or Customer ID.");
-    } else {
-      res.status(500).json("Server Error processing check-in");
-    }
-  }
-});*/
 app.get('/slots',async(req,res)=>{
     try{
         const result =await connection.query('SELECT * FROM parking_slot ORDER BY slot_id ASC');
@@ -181,36 +131,31 @@ app.get('/customerslist', async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-app.get('/parking:plate', async (req, res) => {
-    const { plate } = req.params;
-    try {
-        const query = `
-            SELECT r.record_id, r.entry_time, 
-            EXTRACT(EPOCH FROM (NOW() - r.entry_time))/3600 as hours_parked
-            FROM parking_record r
-            JOIN vehicle v ON r.vehicle_id = v.vehicle_id
-            WHERE v.plate_number = $1 AND r.exit_time IS NULL
-        `;
-        const result = await connection.query(query, [plate]);
-
-        if (result.rows.length === 0) return res.status(404).send("Not found");
-
-        const record = result.rows[0];
-        
-        const rate = 10; 
-        const amount = (Math.ceil(record.hours_parked) * rate).toFixed(2);
-
+app.post('/parking',async(req,res)=>{
+    try{
+        console.log(req.body);
+        console.log(req.body.plate)
+        license_plate=req.body.plate;
+    const result=await connection.query("SELECT vehicle_id FROM vehicle WHERE license_plate=$1",[license_plate]);
+    console.log(result);
+    if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Vehicle not found" });
+        }
+    const veh_id=result.rows[0].vehicle_id;
+    console.log(veh_id)
+   const updateResult= await connection.query("UPDATE parking_record SET exit_time = NOW(),total_fee = (EXTRACT(EPOCH FROM (NOW() - entry_time))/3600) * 20 WHERE vehicle_id = $1 AND exit_time IS NULL RETURNING total_fee,entry_time;",[veh_id]);
+   if (updateResult.rows.length === 0) {
+             return res.status(400).json({ message: "Vehicle already exited or not parked." });
+        }
         res.json({ 
-            record_id: record.record_id, 
-            entry_time: record.entry_time, 
-            amount: amount 
+            message: "Success", 
+            details: updateResult.rows[0] 
         });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Server Error");
     }
-});
+    catch(err){
+        console.log(err);
+    }
+})
 
 app.post('/payment', async (req, res) => {
     const { record_id, amount, method } = req.body;
